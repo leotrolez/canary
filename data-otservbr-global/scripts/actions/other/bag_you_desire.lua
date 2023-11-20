@@ -19,7 +19,6 @@ local rewards = {
 	{ id = 34096, name = "soulshroud" },
 }
 
-BagYouDesireId = 34109
 local bagyouDesire = Action()
 
 function bagyouDesire.onUse(player, item, fromPosition, target, toPosition, isHotkey)
@@ -36,5 +35,5 @@ function bagyouDesire.onUse(player, item, fromPosition, target, toPosition, isHo
 	return true
 end
 
-bagyouDesire:id(BagYouDesireId)
+bagyouDesire:id(34109)
 bagyouDesire:register()

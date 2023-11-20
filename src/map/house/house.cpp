@@ -763,15 +763,15 @@ void Houses::payHouses(RentPeriod_t rentPeriod) const {
 			continue;
 		}
 
-		auto player = g_game().getPlayerByGUID(ownerId, true);
-		if (!player) {
+		std::shared_ptr<Player> player = std::make_shared<Player>(nullptr);
+		if (!IOLoginData::loadPlayerById(player, ownerId)) {
 			// Player doesn't exist, reset house owner
 			house->setOwner(0);
 			continue;
 		}
 
 		if (player->getBankBalance() >= rent) {
-			g_game().removeMoney(player, rent, 0, true);
+			player->setBankBalance(player->getBankBalance() - rent);
 
 			time_t paidUntil = currentTime;
 			switch (rentPeriod) {

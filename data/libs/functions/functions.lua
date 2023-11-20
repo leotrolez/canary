@@ -244,26 +244,8 @@ function setPlayerMarriageStatus(id, val)
 	db.query("UPDATE `players` SET `marriage_status` = " .. val .. " WHERE `id` = " .. id)
 end
 
-function checkBoss(centerPosition, rangeX, rangeY, bossName, bossPos)
-	local spectators, found = Game.getSpectators(centerPosition, false, false, rangeX, rangeX, rangeY, rangeY), false
-	for i = 1, #spectators do
-		local spec = spectators[i]
-		if spec:isMonster() then
-			if spec:getName() == bossName then
-				found = true
-				break
-			end
-		end
-	end
-	if not found then
-		local boss = Game.createMonster(bossName, bossPos, true, true)
-		boss:setReward(true)
-	end
-	return found
-end
-
-function clearBossRoom(playerId, centerPosition, onlyPlayers, rangeX, rangeY, exitPosition)
-	local spectators, spectator = Game.getSpectators(centerPosition, false, onlyPlayers, rangeX, rangeX, rangeY, rangeY)
+function clearBossRoom(playerId, bossId, centerPosition, rangeX, rangeY, exitPosition)
+	local spectators, spectator = Game.getSpectators(centerPosition, false, false, rangeX, rangeX, rangeY, rangeY)
 	for i = 1, #spectators do
 		spectator = spectators[i]
 		if spectator:isPlayer() and spectator.uid == playerId then
@@ -285,13 +267,13 @@ function clearRoom(centerPosition, rangeX, rangeY, resetGlobalStorage)
 			spectator:remove()
 		end
 	end
-	if resetGlobalStorage ~= nil and Game.getStorageValue(resetGlobalStorage) == 1 then
+	if Game.getStorageValue(resetGlobalStorage) == 1 then
 		Game.setStorageValue(resetGlobalStorage, -1)
 	end
 end
 
-function roomIsOccupied(centerPosition, onlyPlayers, rangeX, rangeY)
-	local spectators = Game.getSpectators(centerPosition, false, onlyPlayers, rangeX, rangeX, rangeY, rangeY)
+function roomIsOccupied(centerPosition, rangeX, rangeY)
+	local spectators = Game.getSpectators(centerPosition, false, false, rangeX, rangeX, rangeY, rangeY)
 	if #spectators ~= 0 then
 		return true
 	end
@@ -735,6 +717,10 @@ function isInRange(pos, fromPos, toPos)
 	return pos.x >= fromPos.x and pos.y >= fromPos.y and pos.z >= fromPos.z and pos.x <= toPos.x and pos.y <= toPos.y and pos.z <= toPos.z
 end
 
+function isInRangeIgnoreZ(pos, fromPos, toPos)
+	return pos.x >= fromPos.x and pos.y >= fromPos.y and pos.z >= fromPos.z and pos.x <= toPos.x
+end
+
 function isNumber(str)
 	return tonumber(str) ~= nil
 end
@@ -744,7 +730,7 @@ function isInteger(n)
 end
 
 -- Function for the reload talkaction
-local logFormat = "[%s] %s (params: %s)"
+local logFormat = "[%s] %s %s"
 
 function logCommand(player, words, param)
 	local file = io.open(CORE_DIRECTORY .. "/logs/" .. player:getName() .. " commands.log", "a")

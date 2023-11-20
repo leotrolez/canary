@@ -54,21 +54,15 @@ end
 
 function Container:addRewardBossItems(itemList)
 	for itemId, lootInfo in pairs(itemList) do
-		local iType = ItemType(itemId)
-		if iType then
+		local itemType = ItemType(itemId)
+		if itemType then
 			local itemCount = lootInfo.count
-			local charges = iType:getCharges()
+			local charges = itemType:getCharges()
 			if charges > 0 then
 				itemCount = charges
-				logger.debug("Adding item with 'id' to the reward container, item charges {}", iType:getId(), charges)
+				logger.debug("Adding item with 'id' to the reward container, item charges {}", itemType:getId(), charges)
 			end
-			if iType:isStackable() or iType:getCharges() ~= 0 then
-				self:addItem(itemId, itemCount, INDEX_WHEREEVER, FLAG_NOLIMIT)
-			else
-				for i = 1, itemCount do
-					self:addItem(itemId, 1, INDEX_WHEREEVER, FLAG_NOLIMIT)
-				end
-			end
+			self:addItem(itemId, itemCount)
 		end
 	end
 end

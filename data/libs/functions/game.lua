@@ -138,7 +138,7 @@ function Game.setStorageValue(key, value)
 
 	if value == -1 then
 		if globalStorageTable[key] then
-			globalStorageTable[key] = nil
+			table.remove(globalStorageTable, key)
 		end
 		return
 	end

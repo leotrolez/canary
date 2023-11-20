@@ -21,7 +21,7 @@ monster.speed = 125
 monster.manaCost = 0
 
 monster.faction = FACTION_LIONUSURPERS
-monster.enemyFactions = { FACTION_PLAYER, FACTION_LION }
+monster.enemyFactions = { FACTION_LION, FACTION_PLAYER }
 
 monster.changeTarget = {
 	interval = 4000,
@@ -33,7 +33,7 @@ monster.strategiesTarget = {
 }
 
 monster.events = {
-	"UsurperCommanderDeath",
+	"usurperCommanderDeath",
 }
 
 monster.flags = {

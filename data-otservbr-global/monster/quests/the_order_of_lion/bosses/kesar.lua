@@ -32,17 +32,13 @@ monster.strategiesTarget = {
 	nearest = 100,
 }
 
-monster.events = {
-	"KesarImmortal",
-}
-
 monster.flags = {
 	summonable = false,
 	attackable = true,
 	hostile = true,
 	convinceable = false,
 	pushable = false,
-	rewardBoss = false,
+	rewardBoss = true,
 	illusionable = false,
 	canPushItems = true,
 	canPushCreatures = true,

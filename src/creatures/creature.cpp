@@ -17,6 +17,10 @@
 #include "game/zones/zone.hpp"
 #include "map/spectators.hpp"
 
+double Creature::speedA = 857.36;
+double Creature::speedB = 261.29;
+double Creature::speedC = -4795.01;
+
 Creature::Creature() {
 	onIdleStatus();
 }
@@ -65,7 +69,10 @@ void Creature::setSkull(Skulls_t newSkull) {
 }
 
 int64_t Creature::getTimeSinceLastMove() const {
-	return lastStep ? OTSYS_TIME() - lastStep : std::numeric_limits<int64_t>::max();
+	if (lastStep) {
+		return OTSYS_TIME() - lastStep;
+	}
+	return std::numeric_limits<int64_t>::max();
 }
 
 int32_t Creature::getWalkDelay(Direction dir) {
@@ -73,12 +80,19 @@ int32_t Creature::getWalkDelay(Direction dir) {
 		return 0;
 	}
 
-	const int64_t ct = OTSYS_TIME();
-	uint16_t stepDuration = getStepDuration(dir);
-	if (dir == DIRECTION_NONE) {
-		stepDuration *= lastStepCost;
+	int64_t ct = OTSYS_TIME();
+	int64_t stepDuration = getStepDuration(dir);
+	return stepDuration - (ct - lastStep);
+}
+
+int32_t Creature::getWalkDelay() {
+	// Used for auto-walking
+	if (lastStep == 0) {
+		return 0;
 	}
 
+	int64_t ct = OTSYS_TIME();
+	int64_t stepDuration = getStepDuration() * lastStepCost;
 	return stepDuration - (ct - lastStep);
 }
 
@@ -462,9 +476,11 @@ void Creature::onCreatureMove(const std::shared_ptr<Creature> &creature, const s
 
 		if (!teleport) {
 			if (oldPos.z != newPos.z) {
-				lastStepCost = WALK_FLOOR_CHANGE_EXTRA_COST;
+				// floor change extra cost
+				lastStepCost = 2;
 			} else if (Position::getDistanceX(newPos, oldPos) >= 1 && Position::getDistanceY(newPos, oldPos) >= 1) {
-				lastStepCost = WALK_DIAGONAL_EXTRA_COST;
+				// diagonal extra cost
+				lastStepCost = 3;
 			}
 		} else {
 			stopEventWalk();
@@ -616,12 +632,8 @@ void Creature::onDeath() {
 	bool mostDamageUnjustified = false;
 	std::shared_ptr<Creature> lastHitCreature = g_game().getCreatureByID(lastHitCreatureId);
 	std::shared_ptr<Creature> lastHitCreatureMaster;
-	if (lastHitCreature && getPlayer()) {
-		/**
-		 * @deprecated -- This is here to trigger the deprecated onKill events in lua
-		 */
-		lastHitCreature->deprecatedOnKilledCreature(getCreature(), true);
-		lastHitUnjustified = lastHitCreature->onKilledPlayer(getPlayer(), true);
+	if (lastHitCreature && !getMonster()) {
+		lastHitUnjustified = lastHitCreature->onKilledCreature(static_self_cast<Creature>(), true);
 		lastHitCreatureMaster = lastHitCreature->getMaster();
 	} else {
 		lastHitCreatureMaster = nullptr;
@@ -633,7 +645,6 @@ void Creature::onDeath() {
 	const uint32_t inFightTicks = g_configManager().getNumber(PZ_LOCKED);
 	int32_t mostDamage = 0;
 	std::map<std::shared_ptr<Creature>, uint64_t> experienceMap;
-	std::unordered_set<std::shared_ptr<Player>> killers;
 	for (const auto &it : damageMap) {
 		if (auto attacker = g_game().getCreatureByID(it.first)) {
 			CountBlock_t cb = it.second;
@@ -644,20 +655,13 @@ void Creature::onDeath() {
 
 			if (attacker != getCreature()) {
 				uint64_t gainExp = getGainedExperience(attacker);
-				auto attackerMaster = attacker->getMaster() ? attacker->getMaster() : attacker;
-				if (auto attackerPlayer = attackerMaster->getPlayer()) {
+				if (auto attackerPlayer = attacker->getPlayer()) {
 					attackerPlayer->removeAttacked(getPlayer());
 
 					auto party = attackerPlayer->getParty();
-					killers.insert(attackerPlayer);
 					if (party && party->getLeader() && party->isSharedExperienceActive() && party->isSharedExperienceEnabled()) {
 						attacker = party->getLeader();
-						killers.insert(party->getLeader());
 						mostDamageCreature = attacker;
-
-						for (const auto &partyMember : party->getMembers()) {
-							killers.insert(partyMember);
-						}
 					}
 				}
 
@@ -675,22 +679,10 @@ void Creature::onDeath() {
 		it.first->onGainExperience(it.second, getCreature());
 	}
 
-	mostDamageCreature = mostDamageCreature && mostDamageCreature->getMaster() ? mostDamageCreature->getMaster() : mostDamageCreature;
-	for (const auto &killer : killers) {
-		if (auto monster = getMonster()) {
-			killer->onKilledMonster(monster);
-		} else if (auto player = getPlayer(); player && mostDamageCreature != killer) {
-			killer->onKilledPlayer(player, false);
-		}
-	}
-
-	/**
-	 * @deprecated -- This is here to trigger the deprecated onKill events in lua
-	 */
 	if (mostDamageCreature && (mostDamageCreature != lastHitCreature || getMonster()) && mostDamageCreature != lastHitCreatureMaster) {
 		auto mostDamageCreatureMaster = mostDamageCreature->getMaster();
 		if (lastHitCreature != mostDamageCreatureMaster && (lastHitCreatureMaster == nullptr || mostDamageCreatureMaster != lastHitCreatureMaster)) {
-			mostDamageUnjustified = mostDamageCreature->deprecatedOnKilledCreature(getCreature(), false);
+			mostDamageUnjustified = mostDamageCreature->onKilledCreature(static_self_cast<Creature>(), false);
 		}
 	}
 
@@ -1022,7 +1014,9 @@ void Creature::goToFollowCreature() {
 		}
 	}
 
-	if (listDir.empty()) {
+	if (followCreature->getPlayer() && followCreature->getPlayer()->isDisconnected()) {
+		hasFollowPath = false;
+	} else if (listDir.empty()) {
 		hasFollowPath = getPathTo(followCreature->getPosition(), listDir, fpp);
 	}
 
@@ -1193,10 +1187,10 @@ void Creature::onAttackedCreatureKilled(std::shared_ptr<Creature> target) {
 	}
 }
 
-bool Creature::deprecatedOnKilledCreature(std::shared_ptr<Creature> target, bool lastHit) {
+bool Creature::onKilledCreature(std::shared_ptr<Creature> target, bool lastHit) {
 	auto master = getMaster();
 	if (master) {
-		master->deprecatedOnKilledCreature(target, lastHit);
+		master->onKilledCreature(target, lastHit);
 	}
 
 	// scripting event - onKill
@@ -1436,35 +1430,52 @@ bool Creature::hasCondition(ConditionType_t type, uint32_t subId /* = 0*/) const
 	return false;
 }
 
-uint16_t Creature::getStepDuration(Direction dir) {
+int64_t Creature::getStepDuration(Direction dir) {
+	int64_t stepDuration = getStepDuration();
+	if ((dir & DIRECTION_DIAGONAL_MASK) != 0) {
+		stepDuration *= 3;
+	}
+	return stepDuration;
+}
+
+int64_t Creature::getStepDuration() {
 	if (isRemoved()) {
 		return 0;
 	}
 
-	if (walk.needRecache()) {
-		auto duration = std::floor(1000 * walk.groundSpeed / walk.calculatedStepSpeed);
-		walk.duration = static_cast<uint16_t>(std::ceil(duration / SERVER_BEAT) * SERVER_BEAT);
+	int32_t stepSpeed = getStepSpeed();
+	uint32_t calculatedStepSpeed = std::max<uint32_t>(floor((Creature::speedA * log(stepSpeed + Creature::speedB) + Creature::speedC) + 0.5), 1);
+	calculatedStepSpeed = (stepSpeed > -Creature::speedB) ? calculatedStepSpeed : 1;
+
+	uint32_t groundSpeed = 150;
+	auto tile = getTile();
+	if (tile && tile->getGround()) {
+		std::shared_ptr<Item> ground = tile->getGround();
+		const ItemType &it = Item::items[ground->getID()];
+		groundSpeed = it.speed > 0 ? it.speed : groundSpeed;
 	}
 
-	auto duration = walk.duration;
-	if ((dir & DIRECTION_DIAGONAL_MASK) != 0) {
-		duration *= WALK_DIAGONAL_EXTRA_COST;
-	} else if (const auto &monster = getMonster()) {
-		if (monster->isTargetNearby() && !monster->isFleeing() && !monster->getMaster()) {
-			duration *= WALK_TARGET_NEARBY_EXTRA_COST;
-		}
+	double duration = std::floor(1000 * groundSpeed / calculatedStepSpeed);
+	int64_t stepDuration = std::ceil(duration / 50) * 50;
+
+	std::shared_ptr<Monster> monster = getMonster();
+	if (monster && monster->isTargetNearby() && !monster->isFleeing() && !monster->getMaster()) {
+		stepDuration *= 2;
 	}
 
-	return duration;
+	return stepDuration;
 }
 
 int64_t Creature::getEventStepTicks(bool onlyDelay) {
 	int64_t ret = getWalkDelay();
 	if (ret <= 0) {
-		const uint16_t stepDuration = getStepDuration();
-		ret = onlyDelay && stepDuration > 0 ? 1 : stepDuration * lastStepCost;
+		int64_t stepDuration = getStepDuration();
+		if (onlyDelay && stepDuration > 0) {
+			ret = 1;
+		} else {
+			ret = stepDuration * lastStepCost;
+		}
 	}
-
 	return ret;
 }
 
@@ -1487,8 +1498,6 @@ void Creature::setSpeed(int32_t varSpeedDelta) {
 	} else if (oldSpeed <= 0 && !listWalkDir.empty()) {
 		addEventWalk();
 	}
-
-	updateCalculatedStepSpeed();
 }
 
 void Creature::setCreatureLight(LightInfo lightInfo) {

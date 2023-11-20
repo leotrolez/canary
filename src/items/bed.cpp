@@ -84,22 +84,11 @@ bool BedItem::canUse(std::shared_ptr<Player> player) {
 		return false;
 	}
 
-	auto nextBedItem = getNextBedItem();
-	if (nextBedItem == nullptr) {
+	if (getNextBedItem() == nullptr) {
 		return false;
 	}
 
-	const auto &itemType = Item::items[id];
-	if (itemType.bedPart != BED_PILLOW_PART) {
-		return false;
-	}
-
-	auto partName = itemType.name;
-	auto nextPartname = nextBedItem->getName();
-	auto firstPart = keepFirstWordOnly(partName);
-	auto nextPartOf = keepFirstWordOnly(nextPartname);
-	g_logger().debug("First bed part name {}, second part name {}", firstPart, nextPartOf);
-	if (!isMoveable() || !nextBedItem->isMoveable() || firstPart != nextPartOf) {
+	if (Item::items[id].bedPart != BED_PILLOW_PART) {
 		return false;
 	}
 

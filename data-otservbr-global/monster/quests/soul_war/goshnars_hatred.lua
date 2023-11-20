@@ -13,10 +13,6 @@ monster.outfit = {
 	lookMount = 0,
 }
 
-monster.events = {
-	"SoulwarsBossDeath",
-}
-
 monster.health = 300000
 monster.maxHealth = 300000
 monster.race = "undead"
